@@ -1,0 +1,12 @@
+{
+  "name": "vtb_more_tech_data_case",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "Pavel Trefilov",
+  "license": "ISC"
+}
