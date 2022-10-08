@@ -1,66 +1,74 @@
 require('dotenv').config({})
 
-const axios = require('axios')
 const Puppeteer = require('../Puppeteer')
-const fs = require('fs')
 const News = require('../models/News')
 const KeywordsNews = require('../models/KeywordsNews')
 
 const PuppeteerInstance = new Puppeteer()
 
 const getTopURLs = async (page, role) => {
-        try {
-            await page.goto(`https://yandex.ru/search/?text=${role}+новости`)
-            await page.waitForSelector('.main__content')
+    try {
+        await page.goto(`https://yandex.ru/search/?text=${role}+новости`)
+        await page.waitForSelector('.main__content')
 
-            const validLinks = []
-            const links = await page.$$('.serp-item_card a')
-            for (const link of links) {
-                let l = await page.evaluate(element => element.href, link)
-                if (l.indexOf('yandex') === -1 && l.indexOf('dzen') === -1) {
-                    validLinks.push(l)
-                }
+        const validLinks = []
+        const links = await page.$$('.serp-item_card a')
+        for (const link of links) {
+            let l = await page.evaluate(element => element.href, link)
+            if (l.indexOf('yandex') === -1 && l.indexOf('dzen') === -1) {
+                validLinks.push(l)
             }
-
-            let output = []
-            let hosts = []
-
-            for (const l of validLinks) {
-                let url = new URL(l)
-                if (hosts.indexOf(url.host) === -1) {
-                    hosts.push(url.host)
-                    output.push(l)
-                }
-            }
-
-            return output
-        } catch (e) {
-            console.error(e)
         }
+
+        let output = []
+        let hosts = []
+
+        for (const l of validLinks) {
+            let url = new URL(l)
+            if (hosts.indexOf(url.host) === -1) {
+                hosts.push(url.host)
+                output.push(l)
+            }
+        }
+
+        return output
+    } catch (e) {
+        console.error(e)
+    }
 }
 
 const getArticlesLinks = async (page, topURLs) => {
-        const articlesLinks = []
-        for (const url of topURLs) {
-            try {
-                await page.goto(url)
-                await page.waitForSelector('body')
+    let articlesLinks = []
+    for (const url of topURLs) {
+        try {
+            await page.goto(url)
+            await page.waitForSelector('body')
 
-                const articleLinks = await page.$$('article a')
-                if (articleLinks.length) {
-                    for (const article of articleLinks) {
-                        const a = await page.evaluate(element => element.href, article)
-                        if (a) {
-                            articlesLinks.push(a)
-                        }
+            const articleLinks = await page.$$('article a')
+            if (articleLinks.length) {
+                for (const article of articleLinks) {
+                    const a = await page.evaluate(element => element.href, article)
+                    if (a) {
+                        articlesLinks.push(a)
                     }
                 }
-            } catch (e) {
-                console.error(e)
             }
+        } catch (e) {
+            // console.error(e)
         }
+    }
 
-        return articlesLinks
+    // Filter links
+    articlesLinks = articlesLinks
+        .map(item => {
+            let a = new URL(item)
+            return a.protocol + '//' + a.host + a.pathname + a.searchParams
+        })
+        .filter((value, index, self) => {
+            return self.indexOf(value) === index
+        })
+
+    return articlesLinks
 }
 
 const parsePage = async (page, article) => {
@@ -76,13 +84,18 @@ const parsePage = async (page, article) => {
         } catch (e) {
             throw e
         }
-}
+    }
 
 ;(async () => {
-    const role = 'Бухгалтер'
+    const passedArgs = process.argv.slice(2);
+
+    const role = passedArgs[0]
     const { browser, page } = await PuppeteerInstance.init(15000)
 
+    console.log(`Parsing TOP Yandex ... for ${role}`)
     const urls = await getTopURLs(page, role)
+
+    console.log(`Parsing Articles Links ...`)
     const articlesLinks = await getArticlesLinks(page, urls)
 
     const result = []
@@ -109,8 +122,6 @@ const parsePage = async (page, article) => {
 
         }
     }
-
-    fs.writeFileSync('buh.json', JSON.stringify(result))
 
     await page.close()
     await browser.close()
