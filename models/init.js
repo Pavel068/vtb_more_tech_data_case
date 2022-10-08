@@ -2,6 +2,7 @@ const sequelize = require('../Sequelize')
 
 const News = require('./News')
 const KeywordsNews = require('./KeywordsNews')
+const Suggestions = require('./Suggestions')
 
 News.hasMany(KeywordsNews, {
     foreignKey: 'new_id'

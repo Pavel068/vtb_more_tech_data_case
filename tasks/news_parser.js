@@ -1,6 +1,10 @@
+require('dotenv').config({})
+
 const axios = require('axios')
-const Puppeteer = require('./Puppeteer')
+const Puppeteer = require('../Puppeteer')
 const fs = require('fs')
+const News = require('../models/News')
+const KeywordsNews = require('../models/KeywordsNews')
 
 const PuppeteerInstance = new Puppeteer()
 
@@ -59,8 +63,23 @@ const getArticlesLinks = async (page, topURLs) => {
         return articlesLinks
 }
 
+const parsePage = async (page, article) => {
+        try {
+            await page.goto(article)
+            await page.waitForSelector('meta[property="og:title"]')
+
+            return {
+                url: article,
+                title: await page.evaluate(element => element.content, await page.$('meta[property="og:title"]')),
+                description: await page.evaluate(element => element.content, await page.$('meta[property="og:description"]')),
+            }
+        } catch (e) {
+            throw e
+        }
+}
+
 ;(async () => {
-    const role = 'Генеральный+директор'
+    const role = 'Бухгалтер'
     const { browser, page } = await PuppeteerInstance.init(15000)
 
     const urls = await getTopURLs(page, role)
@@ -69,18 +88,25 @@ const getArticlesLinks = async (page, topURLs) => {
     const result = []
     for (const article of articlesLinks) {
         try {
-            await page.goto(article)
-            await page.waitForSelector('meta[property="og:title"]')
+            const data = await parsePage(page, article)
+            const n = await News.create({
+                name: data.title,
+                description: data.description,
+                url: data.url
+            }, {
+                fields: ['name', 'description', 'url']
+            })
+            const news = await n.save()
 
-            const data = {
-                url: article,
-                title: await page.evaluate(element => element.content, await page.$('meta[property="og:title"]')),
-                description: await page.evaluate(element => element.content, await page.$('meta[property="og:description"]')),
-            }
-            console.log(data)
-            result.push(data)
+            const kw = await KeywordsNews.create({
+                keyword_name: role,
+                new_id: news.id
+            }, {
+                fields: ['keyword_name', 'new_id']
+            })
+            await kw.save()
         } catch (e) {
-            console.error(e)
+
         }
     }
 
